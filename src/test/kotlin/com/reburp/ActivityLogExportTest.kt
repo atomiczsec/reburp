@@ -12,12 +12,11 @@ class ActivityLogExportTest {
         method: String = "GET",
         path: String = "/api/users/1",
         status: Int = 200,
-        notes: String = "",
         sessionId: String? = null,
     ) = LogEntry(
         id = id, timestamp = "10:00:00.000", method = method, path = path, status = status,
         durationMs = 12, requestHeaders = "Host: 127.0.0.1:9090", requestBody = "{}",
-        responseBody = "{}", notes = notes, sessionId = sessionId,
+        responseBody = "{}", sessionId = sessionId,
     )
 
     private fun row(e: LogEntry) = ExportRow(
@@ -35,14 +34,14 @@ class ActivityLogExportTest {
         val csv = exportCsv(listOf(row(entry()), row(entry(id = 2, method = "POST"))), columns)
         val lines = csv.trim().split("\r\n")
         assertEquals(3, lines.size)
-        assertEquals("#,Time,Method,Status,ms,Host,Path,AI Notes,Session", lines[0])
+        assertEquals("#,Time,Method,Status,ms,Host,Path,Session", lines[0])
         assertTrue(lines[1].startsWith("1,10:00:00.000,GET,200,12,,/api/users/1"))
     }
 
     @Test
     fun `csv quotes separators quotes and newlines`() {
-        val csv = exportCsv(listOf(row(entry(notes = "IDOR, maybe \"high\"\nconfirmed"))), columns)
-        assertTrue(csv.contains("\"IDOR, maybe \"\"high\"\"\nconfirmed\""), csv)
+        val csv = exportCsv(listOf(row(entry(path = "/a,b \"c\"\nd"))), columns)
+        assertTrue(csv.contains("\"/a,b \"\"c\"\"\nd\""), csv)
     }
 
     @Test

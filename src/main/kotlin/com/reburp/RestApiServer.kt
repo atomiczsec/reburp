@@ -118,7 +118,6 @@ class RestApiServer(private val api: MontoyaApi, val port: Int = 9090, private v
 
                     proceed()
 
-                    // Route may have self-logged PoC entries and marked this to skip
                     if (call.attributes.getOrNull(skipLogAttr) == true) return@intercept
 
                     val duration = System.currentTimeMillis() - start
@@ -134,7 +133,7 @@ class RestApiServer(private val api: MontoyaApi, val port: Int = 9090, private v
                 statusRoutes(api, port)
                 proxyRoutes(api)
                 siteMapRoutes(api)
-                httpRoutes(api, activityLog)
+                httpRoutes(api)
                 requestEngineRoutes(api, activityLog)
                 scannerRoutes(api)
                 configRoutes(api)

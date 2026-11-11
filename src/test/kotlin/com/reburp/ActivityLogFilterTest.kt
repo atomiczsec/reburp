@@ -14,13 +14,12 @@ class ActivityLogFilterTest {
         status: Int = 403,
         durationMs: Long = 921,
         host: String = "admin.target.example",
-        notes: String = "Forbidden - check role/scope",
         requestBody: String = """{"host":"admin.target.example","port":443,"use_https":true}""",
         responseBody: String = """{"status":403,"request":"POST /api/admin/roles/grant"}""",
     ) = LogEntry(
         id = id, timestamp = "14:08:51.900", method = method, path = path, status = status,
         durationMs = durationMs, requestHeaders = "Host: 127.0.0.1:9090",
-        requestBody = requestBody, responseBody = responseBody, notes = notes,
+        requestBody = requestBody, responseBody = responseBody,
         host = host, targetUrl = "https://$host$path",
     )
 
@@ -77,13 +76,6 @@ class ActivityLogFilterTest {
     }
 
     @Test
-    fun `notes are searchable on their own`() {
-        val e = entry()
-        assertTrue(matchesFilter(e, "role/scope", FilterTarget.NOTES, false))
-        assertFalse(matchesFilter(e, "role/scope", FilterTarget.HOST, false))
-    }
-
-    @Test
     fun `blank text matches everything so the scope toggle can stand alone`() {
         assertTrue(matchesFilter(entry(), "", FilterTarget.HOST, false))
         assertTrue(matchesFilter(entry(), "   ", FilterTarget.HOST, false))
@@ -96,7 +88,7 @@ class ActivityLogFilterTest {
         assertTrue(all.contains("admin.target.example"), "the host column is part of the sweep")
         assertTrue(all.contains("POST"))
         assertTrue(all.contains("282"))
-        assertEquals(8, all.size)
+        assertEquals(7, all.size)
     }
 
     @Test
