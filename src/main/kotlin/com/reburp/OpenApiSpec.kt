@@ -3450,8 +3450,7 @@ ${extraPaths()}
         "properties": {
           "request":           { "type": "string" },
           "response":          { "type": "string", "nullable": true },
-          "status":            { "type": "integer", "nullable": true },
-          "ai_notes":          { "type": "string", "nullable": true }
+          "status":            { "type": "integer", "nullable": true }
         }
       },
 

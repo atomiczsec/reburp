@@ -134,7 +134,7 @@ class RestApiServer(private val api: MontoyaApi, val port: Int = 9090, private v
                 statusRoutes(api, port)
                 proxyRoutes(api)
                 siteMapRoutes(api)
-                httpRoutes(api, activityLog)
+                httpRoutes(api)
                 requestEngineRoutes(api, activityLog)
                 scannerRoutes(api)
                 configRoutes(api)
