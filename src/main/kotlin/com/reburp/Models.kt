@@ -110,7 +110,7 @@ data class SendHttp2Request(
     val body: String = ""
 )
 
-@Serializable data class HttpSendResponse(val request: String, val response: String?, val status: Int? = null, val ai_notes: String? = null)
+@Serializable data class HttpSendResponse(val request: String, val response: String?, val status: Int? = null)
 
 // ── Repeater / Intruder / Comparer ───────────────────────────────────────────
 
@@ -863,7 +863,7 @@ data class FuzzResult(
     val path: String,
     val status: Int,
     val length: Int,
-    val ai_notes: String? = null,
+    val error: String? = null,
     val body_snippet: String? = null
 )
 
@@ -907,7 +907,7 @@ data class AuthDiffResponse(
 )
 
 @Serializable
-data class AuthDiffSide(val status: Int, val body_length: Int, val ai_notes: String? = null)
+data class AuthDiffSide(val status: Int, val body_length: Int)
 
 // ── Rate test ─────────────────────────────────────────────────────────────────
 
@@ -944,7 +944,6 @@ data class LogEntryDto(
     val path: String,
     val status: Int,
     val duration_ms: Long,
-    val ai_notes: String,
     val session_id: String? = null
 )
 /** One page of the activity log, with the total so a caller can tell a page from the whole. */

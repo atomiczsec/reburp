@@ -117,7 +117,7 @@ JAVA_HOME=/path/to/jdk17 ./gradlew shadowJar
 A **reburp** tab appears in Burp showing every REST call as it happens.
 
 <p align="center">
-  <img src="static/reburp-in-action.png" alt="The reburp tab in Burp Suite: an API Log of GET, POST and DELETE calls with method, status, timing, target host, path and AI notes; a filter bar with a field selector, a Bodies option, an In scope only toggle and an Export button; and the selected call's target request and response below" title="reburp in action" width="700">
+  <img src="static/reburp-in-action.png" alt="The reburp tab in Burp Suite: an API Log of GET, POST and DELETE calls with method, status, timing, target host and path; a filter bar with a field selector, a Bodies option, an In scope only toggle and an Export button; and the selected call's target request and response below" title="reburp in action" width="700">
 </p>
 
 Each row is one REST call. Selecting it shows the API request and response, plus the request

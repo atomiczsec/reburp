@@ -3,7 +3,6 @@ package com.reburp.routes
 import burp.api.montoya.MontoyaApi
 import burp.api.montoya.http.HttpMode
 import burp.api.montoya.http.RedirectionMode
-import com.reburp.analyzeEntry
 import burp.api.montoya.http.RequestOptions
 import burp.api.montoya.http.message.HttpHeader
 import burp.api.montoya.http.message.params.HttpParameter
@@ -50,7 +49,7 @@ private fun buildStructuredRequest(
     }
 }
 
-fun Routing.httpRoutes(api: MontoyaApi, activityLog: ActivityLogTab? = null) {
+fun Routing.httpRoutes(api: MontoyaApi) {
 
     route("/api/http") {
 
@@ -107,14 +106,7 @@ fun Routing.httpRoutes(api: MontoyaApi, activityLog: ActivityLogTab? = null) {
                     HttpSendResponse(
                         request   = reqStr,
                         response  = rawResp,
-                        status    = httpStatus?.toInt(),
-                        ai_notes  = analyzeEntry(
-                            method       = req.method ?: "GET",
-                            path         = req.path ?: "/",
-                            status       = httpStatus?.toInt() ?: 0,
-                            requestBody  = reqStr,
-                            responseBody = rawResp ?: ""
-                        ).ifBlank { null }
+                        status    = httpStatus?.toInt()
                     )
                 )
             }.onFailure { e ->
@@ -544,12 +536,11 @@ fun Routing.httpRoutes(api: MontoyaApi, activityLog: ActivityLogTab? = null) {
                                else api.http().sendRequest(HttpRequest.httpRequest(service, rawReq))
                     val status  = rr?.response()?.statusCode()?.toInt() ?: 0
                     val body    = rr?.response()?.body()?.toString() ?: ""
-                    val notes   = analyzeEntry(req.method, path, status, rawReq, body).ifBlank { null }
                     val snippet = if (req.include_body_snippet) body.take(300).ifBlank { null } else null
                     // Pair body with result so we can filter on full content even without include_body_snippet
                     Pair(body, FuzzResult(word = word, path = path, status = status, length = body.length,
-                        ai_notes = notes, body_snippet = snippet))
-                }.getOrElse { Pair("", FuzzResult(word = word, path = path, status = 0, length = 0, ai_notes = "error: ${it.message}")) }
+                        body_snippet = snippet))
+                }.getOrElse { Pair("", FuzzResult(word = word, path = path, status = 0, length = 0, error = it.message ?: "Request failed")) }
             }
             results.addAll(chunkResults)
         }
@@ -627,8 +618,7 @@ fun Routing.httpRoutes(api: MontoyaApi, activityLog: ActivityLogTab? = null) {
             val rr = runCatching { api.http().sendRequest(HttpRequest.httpRequest(service, rawReq)) }.getOrNull()
             val status = rr?.response()?.statusCode()?.toInt() ?: 0
             val body   = rr?.response()?.body()?.toString() ?: ""
-            val notes  = analyzeEntry(req.method, req.path, status, rawReq, body).ifBlank { null }
-            return AuthDiffSide(status = status, body_length = body.length, ai_notes = notes)
+            return AuthDiffSide(status = status, body_length = body.length)
         }
 
         val authed      = sendSide(req.auth_header)
@@ -654,38 +644,6 @@ fun Routing.httpRoutes(api: MontoyaApi, activityLog: ActivityLogTab? = null) {
                 "Auth enforced: unauthenticated gets ${unauthed.status}"
             else ->
                 "Differs: auth=${authed.status}, unauth=${unauthed.status}"
-        }
-
-        val isPoc = verdict.startsWith("POSSIBLE AUTH BYPASS") ||
-                    verdict.startsWith("PRIVILEGE ESCALATION") ||
-                    verdict.startsWith("POSSIBLE PRIVILEGE ESCALATION") ||
-                    verdict.startsWith("SUSPICIOUS")
-
-        // When a confirmed/suspected finding, suppress the generic API-level log entry
-        // and emit one labeled PoC entry per side so the log reads like an Autorize report.
-        if (isPoc && activityLog != null) {
-            call.attributes.put(skipLogAttr, true)
-            val sessionId = runCatching {
-                call.receiveText().let { Json.parseToJsonElement(it).jsonObject["session_id"]?.jsonPrimitive?.content }
-            }.getOrNull()
-            val total = if (secondUser != null) 3 else 2
-            val pocType = if (verdict.startsWith("PRIVILEGE ESCALATION") || verdict.startsWith("POSSIBLE PRIVILEGE")) "Priv Escalation PoC" else "Auth Bypass PoC"
-
-            activityLog.log(req.method, req.path, authed.status, 0, "", "", "",
-                sessionId = sessionId, target = service,
-                forcedNotes = "$pocType [1/$total] Authenticated - ${authed.status} (${authed.body_length}B)${authed.ai_notes?.let { " - $it" } ?: ""}"
-            )
-            secondUser?.let {
-                activityLog.log(req.method, req.path, it.status, 0, "", "", "",
-                    sessionId = sessionId, target = service,
-                    forcedNotes = "$pocType [2/$total] Low-Priv User - ${it.status} (${it.body_length}B)${it.ai_notes?.let { n -> " - $n" } ?: ""} | $verdict"
-                )
-            }
-            val unauthIdx = if (secondUser != null) 3 else 2
-            activityLog.log(req.method, req.path, unauthed.status, 0, "", "", "",
-                sessionId = sessionId, target = service,
-                forcedNotes = "$pocType [$unauthIdx/$total] Unauthenticated - ${unauthed.status} (${unauthed.body_length}B) | $verdict"
-            )
         }
 
         call.respond(AuthDiffResponse(
