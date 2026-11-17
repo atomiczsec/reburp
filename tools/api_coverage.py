@@ -125,7 +125,17 @@ UNMAPPABLE = [
      "Callback contracts the engine invokes on Burp's own threads with extension-supplied "
      "code. reburp drives the engine by polling stats/lifecycle and collecting results over "
      "REST rather than handing Burp a handler."),
+
+    (r"^burp\.api\.montoya\.utilities\.shell\.",
+     "OS command execution. Intentionally not exposed: the REST port is unauthenticated and "
+     "accepts any origin, so shellUtils would be remote code execution on the host."),
 ]
+
+# Methods on otherwise-mappable classes that are deliberately left unexposed.
+DELIBERATELY_UNEXPOSED = {
+    ("burp.api.montoya.utilities.Utilities", "shellUtils"):
+        "Accessor for ShellUtils; OS command execution is intentionally not exposed over REST.",
+}
 
 
 def find_montoya_jar():
@@ -260,6 +270,11 @@ def main():
             excluded[cls] = (reason, len(names))
             continue
         for method in sorted(names):
+            deliberate = DELIBERATELY_UNEXPOSED.get((cls, method))
+            if deliberate:
+                excluded_total += 1
+                excluded[f"{cls}#{method}"] = (deliberate, 1)
+                continue
             mappable_total += 1
             if is_used(method, used, properties):
                 mappable_hit += 1

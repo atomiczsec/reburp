@@ -156,10 +156,7 @@ with `GET /api/proxy/history/by-id/{id}`, never `/api/proxy/history/<id>`. To re
 ## Safety
 
 - The port is **unauthenticated** and answers **any origin**. Only ever target `127.0.0.1`.
-- `POST /api/utils/shell/execute*` is remote code execution and is **disabled by default**.
-  It returns `403` unless the user set `REBURP_ENABLE_SHELL=1` in Burp's environment. Do not
-  ask the user to enable it unless the task genuinely needs local command execution, and say
-  what you will run first.
+- OS command execution is not exposed over the API.
 - `POST /api/burp/shutdown` and `POST /api/meta/extension/unload` stop Burp or the API. Never
   call them to "reset" something.
 - Only drive scans and requests against targets the user has confirmed are in scope for their

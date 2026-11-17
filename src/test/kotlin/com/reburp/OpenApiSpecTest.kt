@@ -12,6 +12,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
 import kotlin.test.Test
+import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
@@ -27,6 +28,11 @@ class OpenApiSpecTest {
     private val spec: JsonObject = Json.parseToJsonElement(openApiJson()).jsonObject
     private val schemas: JsonObject = spec["components"]!!.jsonObject["schemas"]!!.jsonObject
     private val paths: JsonObject = spec["paths"]!!.jsonObject
+
+    @Test
+    fun `the spec does not expose shell execution`() {
+        assertTrue(paths.keys.none { it == "/api/utils/shell" || it.startsWith("/api/utils/shell/") })
+    }
 
     private fun operations(): List<Triple<String, String, JsonObject>> =
         paths.flatMap { (path, item) ->

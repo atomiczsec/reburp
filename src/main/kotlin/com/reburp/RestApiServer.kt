@@ -155,7 +155,6 @@ class RestApiServer(private val api: MontoyaApi, val port: Int = 9090, private v
                 jsonRoutes(api)
                 bytesRoutes(api)
                 rankingRoutes(api)
-                shellRoutes(api)
                 loggingRoutes(api)
                 metaRoutes(api, port)
                 collaboratorExtraRoutes(api)
