@@ -390,12 +390,6 @@ def main():
                     {"id": bar["id"], "text": "no-such-entry-zzz"}, expect=404)
             c.check_png("screenshot cropped to an element", f"/api/ui/screenshot?id={bar['id']}")
 
-    print("\nShell (expected off)")
-    c.check("shell status", "GET", "/api/utils/shell/status",
-            verify=lambda p: None if "enabled" in p else "no enabled flag")
-    c.check("execute refused while disabled", "POST", "/api/utils/shell/execute",
-            {"command": ["echo", "hi"]}, expect=403, tolerate=(200,))
-
     print("\nLogging")
     c.check("output", "POST", "/api/logging/output", {"message": "smoke test: output"},
             verify=wrote_something)

@@ -223,37 +223,5 @@ internal fun utilsSchemas(): String = """
           "truncated":  { "type": "boolean", "description": "True when the filtered set exceeded the 2000-entry scoring cap and only the most recent were scored" },
           "ranked":     { "type": "array",   "items": { "${'$'}ref": "#/components/schemas/RankedEntry" }, "description": "Entries sorted by descending rank (most anomalous first)" }
         }
-      },
-
-      "ShellExecInput": {
-        "type": "object",
-        "description": "Execution request. Use `command` with /execute and `command_line` with /execute-raw.",
-        "properties": {
-          "command":            { "type": "array", "items": { "type": "string" }, "description": "Argument vector for /execute. No shell is involved." },
-          "command_line":       { "type": "string", "nullable": true, "description": "Shell command line for /execute-raw" },
-          "timeout_seconds":    { "type": "integer", "default": 30, "minimum": 1, "maximum": 600, "description": "Wall-clock limit" },
-          "timeout_behavior":   { "type": "string", "enum": ["FAIL_ON_TIMEOUT", "ALLOW_TIMEOUT"], "default": "FAIL_ON_TIMEOUT", "description": "What to do when the limit is hit" },
-          "stderr_behavior":    { "type": "string", "enum": ["MERGE", "DISCARD"], "default": "MERGE", "description": "Whether stderr joins the output" },
-          "exit_code_behavior": { "type": "string", "enum": ["FAIL_ON_NON_ZERO", "ALLOW_NON_ZERO"], "default": "ALLOW_NON_ZERO", "description": "Whether a non-zero exit is an error" },
-          "environment":        { "type": "object", "additionalProperties": { "type": "string" }, "description": "Extra environment variables for the child process" }
-        }
-      },
-
-      "ShellStatusResult": {
-        "type": "object",
-        "properties": {
-          "enabled":    { "type": "boolean", "description": "Whether the execution routes will run commands" },
-          "enable_via": { "type": "string",  "description": "How to turn them on" },
-          "warning":    { "type": "string",  "description": "Why they are off by default" }
-        }
-      },
-
-      "ShellExecResult": {
-        "type": "object",
-        "properties": {
-          "output":            { "type": "string",  "description": "Captured output, including stderr when merged" },
-          "shell_interpreted": { "type": "boolean", "description": "True for /execute-raw, false for /execute" },
-          "timeout_seconds":   { "type": "integer", "description": "Limit applied to this run" }
-        }
       }
 """

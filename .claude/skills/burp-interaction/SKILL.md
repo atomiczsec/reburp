@@ -133,9 +133,6 @@ tells you the current state ("Enable line wrapping" means it is off) without cli
 ## Safety
 
 - The port is **unauthenticated** and answers **any origin**. Only ever target `127.0.0.1`.
-- `POST /api/utils/shell/execute*` is remote code execution and is **disabled by default**.
-  It returns `403` unless the user set `REBURP_ENABLE_SHELL=1` in Burp's environment. Do not
-  ask the user to enable it unless the task genuinely needs local command execution, and say
-  what you will run first.
+- OS command execution is not exposed over the API. Do not look for `/api/utils/shell/*`.
 - Only drive scans and requests against targets the user has confirmed are in scope for their
   engagement.

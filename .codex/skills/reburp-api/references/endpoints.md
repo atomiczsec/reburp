@@ -213,12 +213,6 @@ Notation: `*` marks a required field, `=x` is the default, `a|b` is an enum. `bo
 
 - `POST /api/utils/rank` - Rank proxy history by how anomalous each exchange looks. Body: {limit:integer=100, offset:integer=0, algorithm:ANOMALY, scope_only:boolean=false, host:string, max_scored:integer=2000}
 
-## Shell
-
-- `GET /api/utils/shell/status` - Report whether command execution is enabled
-- `POST /api/utils/shell/execute` - Execute an argument vector (disabled by default). Body: {command:[string], command_line:string, timeout_seconds:integer=30, timeout_behavior:FAIL_ON_TIMEOUT|ALLOW_TIMEOUT="FAIL_ON_TIMEOUT", stderr_behavior:MERGE|DISCARD="MERGE", exit_code_behavior:FAIL_ON_NON_ZERO|ALLOW_NON_ZERO="ALLOW_NON_ZERO", environment:object}
-- `POST /api/utils/shell/execute-raw` - Execute a shell command line (disabled by default). Body: {command:[string], command_line:string, timeout_seconds:integer=30, timeout_behavior:FAIL_ON_TIMEOUT|ALLOW_TIMEOUT="FAIL_ON_TIMEOUT", stderr_behavior:MERGE|DISCARD="MERGE", exit_code_behavior:FAIL_ON_NON_ZERO|ALLOW_NON_ZERO="ALLOW_NON_ZERO", environment:object}
-
 ## Extension Data
 
 - `GET /api/extension-data` - List every key stored at the root of the extension data tree

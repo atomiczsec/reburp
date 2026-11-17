@@ -83,9 +83,7 @@ non-zero exit on HTTP errors. Set `REBURP_URL` if the port was changed.
 
 - The port is **unauthenticated** and answers **any origin**. Only ever target `127.0.0.1`, and
   never expose or proxy it off loopback.
-- `POST /api/utils/shell/execute` and `/execute-raw` are host command execution and return `403`
-  unless the user set `REBURP_ENABLE_SHELL=1` in Burp's own environment. Do not ask them to enable
-  it unless the task truly needs it, and say what you will run first.
+- OS command execution is not exposed over the API. Do not look for `/api/utils/shell/*`.
 - `POST /api/burp/shutdown` and `POST /api/meta/extension/unload` kill Burp or the API. Never call
   them to "reset" something.
 - Only scan, fuzz or send requests at hosts the user confirmed are in scope for their engagement.
