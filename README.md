@@ -32,8 +32,9 @@ you would click in Burp - reading proxy history, sending a request, editing scop
 scan, decoding a token - becomes a JSON call an agent or a `curl` line can make.
 
 It pairs with the [`burp-interaction`](.claude/skills/burp-interaction) agent skill so an AI
-assistant can drive Burp directly. Codex uses [`reburp-api`](.codex/skills/reburp-api), which
-ships a spec-aware client, `scripts/reburp.py`, and [`reburp-traffic`](.codex/skills/reburp-traffic).
+assistant can drive Burp directly. Claude Code and Codex both use it: Codex finds it through a
+pointer in [`.codex/skills`](.codex/skills/burp-interaction), and the skill ships a small
+spec-aware client, `scripts/reburp.py`, for looking up endpoints without reading the whole spec.
 
 - [What reburp unlocks](#what-reburp-unlocks)
 - [Install](#install)
@@ -122,7 +123,7 @@ JAVA_HOME=/path/to/jdk17 ./gradlew shadowJar
 A **reburp** tab appears in Burp showing every REST call as it happens.
 
 <p align="center">
-  <img src="static/reburp-in-action.png" alt="The reburp tab in Burp Suite: an API Log of GET, POST and DELETE calls with method, status, timing, target host and path; a filter bar with a field selector, a Bodies option, an In scope only toggle and an Export button; and the selected call's target request and response below" title="reburp in action" width="700">
+  <img src="static/reburp-in-action.png" alt="The reburp tab in Burp Suite: an API Log of GET, POST and DELETE calls with method, status, timing, target host, path and AI notes; a filter bar with a field selector, a Bodies option, an In scope only toggle and an Export button; and the selected call's target request and response below" title="reburp in action" width="700">
 </p>
 
 Each row is one REST call. Selecting it shows the API request and response, plus the request

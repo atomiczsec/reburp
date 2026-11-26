@@ -75,7 +75,11 @@ data class UiClickRequest(
     val window: String? = null,
     val button: String = "left",
     val count: Int = 1,
-    val modifiers: List<String> = emptyList()
+    val modifiers: List<String> = emptyList(),
+    /** With the id of a tree, table or list: the row to click, by index. */
+    val row: Int? = null,
+    /** With the id of a tree, table or list: the first row whose label contains this. */
+    val row_text: String? = null
 )
 
 @Serializable
@@ -171,10 +175,73 @@ private fun textOf(c: Component): String? = when (c) {
     else -> null
 }?.takeIf { it.isNotEmpty() }
 
+/** What each row of a tree, table or list shows, or null for anything else. */
+internal fun rowLabels(c: Component): List<String>? = when (c) {
+    is JTree -> (0 until c.rowCount).map { treeRowLabel(c, it) }
+    is JTable -> (0 until c.rowCount).map { r ->
+        (0 until c.columnCount).joinToString(" | ") { c.getValueAt(r, it)?.toString() ?: "" }
+    }
+    is JList<*> -> (0 until c.model.size).map { c.model.getElementAt(it).toString() }
+    else -> null
+}
+
+/**
+ * Pick a row of a tree, table or list by index or label, select it and scroll it into view, and
+ * return its index, label and a point inside it in the component's coordinates. Right-clicking
+ * a row used to need window coordinates, which land on something else once the window or its
+ * panes are resized; Burp's context menus also act on the selection, so the row is selected first.
+ */
+internal fun targetRow(c: Component, index: Int?, text: String?): Triple<Int, String, Point> {
+    val labels = rowLabels(c)
+        ?: throw UiBadTarget("${typeName(c)} has no rows; row and row_text work on trees, tables and lists")
+    val i = when {
+        index != null -> index
+        text != null -> labels.indexOfFirst { it.contains(text, ignoreCase = true) }
+        else -> throw UiBadTarget("Give row or row_text")
+    }
+    if (i < 0 || i >= labels.size) throw UiNotFound("No row matches ${text ?: index} (${labels.size} rows)")
+    val bounds = when (c) {
+        is JTree -> { c.setSelectionRow(i); c.scrollRowToVisible(i); c.getRowBounds(i) }
+        is JTable -> {
+            // Never a checkbox column: in Burp's Extensions table column 0 is Loaded, and a
+            // click there would unload the extension instead of picking the row.
+            val col = (0 until c.columnCount).firstOrNull {
+                c.getColumnClass(it) != java.lang.Boolean::class.java && c.getValueAt(i, it) !is Boolean
+            } ?: throw UiBadTarget("Every column of this table is a checkbox, so a row click would toggle one")
+            c.setRowSelectionInterval(i, i)
+            c.getCellRect(i, col, true).also { c.scrollRectToVisible(it) }
+        }
+        is JList<*> -> { c.selectedIndex = i; c.ensureIndexIsVisible(i); c.getCellBounds(i, i) }
+        else -> null
+    } ?: throw UiNotFound("Row $i has no bounds (is it inside a collapsed branch?)")
+    // A little in from the left edge, where the row's own label is, rather than its centre,
+    // which for a wide table can be in a column that handles clicks differently.
+    return Triple(i, labels[i], Point(bounds.x + minOf(12, bounds.width / 2), bounds.y + bounds.height / 2))
+}
+
+/** All text a rendered cell shows; renderers are often panels holding several labels. */
+internal fun renderedText(c: Component): String? =
+    textOf(c)?.takeIf { it.isNotBlank() }
+        ?: (c as? Container)?.components?.mapNotNull { renderedText(it) }?.joinToString(" ")?.takeIf { it.isNotBlank() }
+
+/**
+ * What a tree row shows. Burp's site map nodes print as object ids (burp.Zv8w@3864a7fc), so
+ * matching on toString() never found a host by name; ask the tree's renderer instead.
+ */
+internal fun treeRowLabel(tree: JTree, row: Int): String {
+    val node = tree.getPathForRow(row).lastPathComponent
+    val shown = runCatching {
+        tree.cellRenderer.getTreeCellRendererComponent(tree, node, tree.isRowSelected(row),
+            tree.isExpanded(row), tree.model.isLeaf(node), row, false)
+    }.getOrNull()?.let(::renderedText)
+    return shown ?: node.toString()
+}
+
 private fun itemsOf(c: Component): List<String>? = when (c) {
     is JComboBox<*> -> (0 until minOf(c.itemCount, 100)).map { c.getItemAt(it).toString() }
     is JList<*> -> (0 until minOf(c.model.size, 100)).map { c.model.getElementAt(it).toString() }
     is JTabbedPane -> (0 until c.tabCount).map { c.getTitleAt(it) }
+    is JTree -> (0 until minOf(c.rowCount, 100)).map { treeRowLabel(c, it) }
     else -> null
 }
 
@@ -377,9 +444,17 @@ fun Routing.uiElementRoutes(api: MontoyaApi) {
             val req = call.bodyOr400<UiClickRequest>() ?: return@post
             val frame = call.frameOr503() ?: return@post
             runCatching {
-                onEdt {
+                actOnEdt({
                     val wins = showingWindows(frame)
+                    var rowLabel: String? = null
                     val (deepest, at, win) = when {
+                        req.id != null && (req.row != null || req.row_text != null) -> {
+                            val c = resolveElement(req.id, wins)
+                            if (!c.isShowing) throw UiBadTarget("Element ${req.id} is not showing")
+                            val (i, label, point) = targetRow(c, req.row, req.row_text)
+                            rowLabel = "row $i '$label'"
+                            Triple(c, point, SwingUtilities.getWindowAncestor(c) ?: frame)
+                        }
                         req.id != null -> {
                             val c = resolveElement(req.id, wins)
                             if (!c.isShowing) throw UiBadTarget("Element ${req.id} is not showing")
@@ -397,11 +472,12 @@ fun Routing.uiElementRoutes(api: MontoyaApi) {
                         else -> throw UiBadTarget("Give an element id, or x and y (window coordinates)")
                     }
                     val (target, p) = retargetForClick(deepest, at, win)
-                    clickAt(target, p.x, p.y, req.button, req.count, modifierMask(req.modifiers))
-                    val label = (textOf(target) ?: textOf(deepest))?.let { " '$it'" } ?: ""
+                    val label = rowLabel?.let { " $it" } ?: (textOf(target) ?: textOf(deepest))?.let { " '$it'" } ?: ""
                     val via = if (target !== deepest) " via ${implName(target) ?: typeName(target)}" else ""
-                    UiActionResponse(true, "Clicked", "${typeName(target)}$label$via")
-                }
+                    UiActionResponse(true, "Clicked", "${typeName(target)}$label$via") to {
+                        clickAt(target, p.x, p.y, req.button, req.count, modifierMask(req.modifiers))
+                    }
+                })
             }.onSuccess { call.respond(it) }.onFailure { call.failFrom(it) }
         }
 
@@ -473,7 +549,7 @@ fun Routing.uiElementRoutes(api: MontoyaApi) {
                             UiActionResponse(true, "Selected row", "row $i of ${c.rowCount}")
                         }
                         is JTree -> {
-                            val labels = (0 until c.rowCount).map { c.getPathForRow(it).lastPathComponent.toString() }
+                            val labels = (0 until c.rowCount).map { treeRowLabel(c, it) }
                             val i = pick(labels)
                             c.setSelectionRow(i)
                             c.scrollRowToVisible(i)
@@ -490,7 +566,7 @@ fun Routing.uiElementRoutes(api: MontoyaApi) {
             val req = call.bodyOr400<UiKeyRequest>() ?: return@post
             val frame = call.frameOr503() ?: return@post
             runCatching {
-                onEdt {
+                actOnEdt({
                     val target = when {
                         req.id != null -> resolveElement(req.id, showingWindows(frame))
                         else -> KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner ?: frame
@@ -498,9 +574,10 @@ fun Routing.uiElementRoutes(api: MontoyaApi) {
                     // AWT's focus manager drops key events for anything not showing, silently.
                     if (!target.isShowing) throw UiBadTarget("Element ${req.id ?: "(focus owner)"} is not showing, so it cannot take keys")
                     if (target !== frame && target.isFocusable) target.requestFocusInWindow()
-                    pressKey(target, req.key, req.modifiers)
-                    UiActionResponse(true, "Pressed key", (req.modifiers + req.key.uppercase()).joinToString("+"))
-                }
+                    UiActionResponse(true, "Pressed key", (req.modifiers + req.key.uppercase()).joinToString("+")) to {
+                        pressKey(target, req.key, req.modifiers)
+                    }
+                })
             }.onSuccess { call.respond(it) }.onFailure { call.failFrom(it) }
         }
     }

@@ -72,8 +72,6 @@ data class AnnotateRequest(
 
 // ── Scope ─────────────────────────────────────────────────────────────────────
 
-@Serializable data class ScopeResult(val url: String, val in_scope: Boolean)
-@Serializable data class ScopeRequest(val url: String)
 
 // ── HTTP Send ─────────────────────────────────────────────────────────────────
 
@@ -105,6 +103,8 @@ data class SendHttp2Request(
     val host: String,
     val port: Int = 443,
     val use_https: Boolean = true,
+    /** Raw HTTP/1-style request, converted to HTTP/2; an alternative to pseudo_headers + headers + body. */
+    val request: String? = null,
     val pseudo_headers: Map<String, String> = emptyMap(),
     val headers: Map<String, String> = emptyMap(),
     val body: String = ""
@@ -256,7 +256,10 @@ data class ScanIssueFull(
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-@Serializable data class SetConfigRequest(val json: String)
+@Serializable data class SetConfigRequest(val json: kotlinx.serialization.json.JsonElement) {
+    /** The spec documents an object, but a string was all that parsed; take either. */
+    fun text(): String = (json as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content ?: json.toString()
+}
 @Serializable data class TaskEngineStateDto(val state: String)
 @Serializable data class SetTaskEngineStateRequest(val running: Boolean)
 
@@ -995,7 +998,7 @@ data class ChainStep(
     val body: String? = null,
     /** jsonpath or regex to extract from this step's response, e.g. "$.access" or "sessionid=([^;]+)" */
     val extract: Map<String, String> = emptyMap(),
-    /** variable name -> header name to inject into next step, e.g. {"token": "Authorization: Bearer {token}"} */
+    /** variable name -> header line to add to this step, e.g. {"token": "Authorization: Bearer {{token}}"} */
     val inject: Map<String, String> = emptyMap()
 )
 
@@ -1005,7 +1008,9 @@ data class GenerateChainRequest(
     val host: String,
     val port: Int = 443,
     val https: Boolean = true,
-    val steps: List<ChainStep>
+    val steps: List<ChainStep>,
+    /** Save the chain into Burp's Bambda library; false only returns the source. */
+    val import_to_library: Boolean = true
 )
 
 @Serializable

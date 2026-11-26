@@ -112,6 +112,25 @@ fun openApiJson(): String = """
       }
     },
 
+    "/api/proxy/history/by-id/{id}": {
+      "get": {
+        "tags": ["Proxy"],
+        "summary": "Get proxy history item by Burp's id",
+        "description": "**[Montoya API]** Returns full request and response for the proxy history item whose Burp message `id` matches, the id that rank results and history listings report. Use this, not `/api/proxy/history/{index}`, which takes a zero-based list position. Its `host`, `port`, `secure` and `request` (or `final_request`) are what `POST /api/http/send` needs to replay it.",
+        "operationId": "getProxyHistoryItemById",
+        "x-api-source": "montoya",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Burp's message id of the history item" },
+          { "name": "include_body", "in": "query", "required": false, "schema": { "type": "boolean", "default": true }, "description": "Include request/response bodies" }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "${'$'}ref": "#/components/schemas/ProxyEntry" } } } },
+          "400": { "${'$'}ref": "#/components/responses/BadRequest" },
+          "404": { "${'$'}ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+
     "/api/proxy/history/search": {
       "get": {
         "tags": ["Proxy"],
@@ -492,7 +511,7 @@ fun openApiJson(): String = """
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "${'$'}ref": "#/components/schemas/ScopeResult" }
+                "schema": { "${'$'}ref": "#/components/schemas/ScopeCheckResult" }
               }
             }
           },
@@ -502,14 +521,14 @@ fun openApiJson(): String = """
       "post": {
         "tags": ["Site Map"],
         "summary": "Add URL to scope",
-        "description": "**[Montoya API]** Adds the given URL to Burp's target scope.",
+        "description": "**[Montoya API]** Adds the given URL to Burp's target scope. Same as POST /api/scope/include.",
         "operationId": "addToScope",
         "x-api-source": "montoya",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "${'$'}ref": "#/components/schemas/ScopeRequest" },
+              "schema": { "${'$'}ref": "#/components/schemas/ScopeUrlRequest" },
               "example": { "url": "https://example.com/" }
             }
           }
@@ -529,14 +548,14 @@ fun openApiJson(): String = """
       "delete": {
         "tags": ["Site Map"],
         "summary": "Remove URL from scope",
-        "description": "**[Montoya API]** Removes the given URL from Burp's target scope.",
+        "description": "**[Montoya API]** Takes the given URL out of Burp's target scope. Montoya cannot delete scope rules, so this adds an exclude rule (and drops a matching include). Same as POST /api/scope/exclude.",
         "operationId": "removeFromScope",
         "x-api-source": "montoya",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "${'$'}ref": "#/components/schemas/ScopeRequest" },
+              "schema": { "${'$'}ref": "#/components/schemas/ScopeUrlRequest" },
               "example": { "url": "https://example.com/" }
             }
           }
@@ -604,7 +623,7 @@ fun openApiJson(): String = """
           },
           "400": { "${'$'}ref": "#/components/responses/BadRequest" },
           "502": {
-            "description": "Failed to connect to target host",
+            "description": "No response from the target: connection refused, reset or timed out",
             "content": {
               "application/json": {
                 "schema": { "${'$'}ref": "#/components/schemas/ErrorResponse" }
@@ -690,7 +709,7 @@ fun openApiJson(): String = """
       "post": {
         "tags": ["HTTP"],
         "summary": "Send HTTP/2 request",
-        "description": "**[Montoya API]** Issues an HTTP/2 request with explicit pseudo-headers and headers through Burp's HTTP engine.",
+        "description": "**[Montoya API]** Issues an HTTP/2 request through Burp's HTTP engine. Give either a raw `request` string (an HTTP/1-style request; its request line becomes `:method` and `:path`, Host becomes `:authority`, and connection-only headers are dropped) or `pseudo_headers` with at least `:method` and `:path` plus optional `headers` and `body`. Missing `:scheme` and `:authority` are filled in from the target. A request with neither is a 400, and a request Burp sent but got no response for is a 502.",
         "operationId": "sendHttp2",
         "x-api-source": "montoya",
         "requestBody": {
@@ -719,7 +738,7 @@ fun openApiJson(): String = """
             }
           },
           "400": { "${'$'}ref": "#/components/responses/BadRequest" },
-          "502": { "description": "Failed to connect to target host", "content": { "application/json": { "schema": { "${'$'}ref": "#/components/schemas/ErrorResponse" } } } }
+          "502": { "description": "No response from the target: connection refused, reset or timed out, or no HTTP/2 support", "content": { "application/json": { "schema": { "${'$'}ref": "#/components/schemas/ErrorResponse" } } } }
         }
       }
     },
@@ -991,8 +1010,9 @@ fun openApiJson(): String = """
         "parameters": [
           { "name": "domain",             "in": "query", "schema": { "type": "string" },  "description": "Filter by domain (exact match)" },
           { "name": "scope_only",         "in": "query", "schema": { "type": "boolean", "default": false }, "description": "Only return cookies for in-scope domains" },
-          { "name": "include_values",     "in": "query", "schema": { "type": "boolean", "default": true  }, "description": "Include cookie values in response" },
-          { "name": "include_subdomains", "in": "query", "schema": { "type": "boolean", "default": false }, "description": "Include cookies matching subdomains" }
+          { "name": "include_values",     "in": "query", "schema": { "type": "boolean", "default": false }, "description": "Include cookie values in response (redacted otherwise)" },
+          { "name": "include_subdomains", "in": "query", "schema": { "type": "boolean", "default": true  }, "description": "With domain, also match cookies set for its subdomains" },
+          { "name": "include_expired",    "in": "query", "schema": { "type": "boolean", "default": false }, "description": "Also list expired cookies. Burp keeps them in the jar, including ones removed with DELETE, but never sends them." }
         ],
         "responses": {
           "200": {
@@ -1299,6 +1319,7 @@ fun openApiJson(): String = """
           }
         },
         "responses": {
+          "501": { "description": "This Burp version does not implement crawling through the Montoya API (Burp 2026.11 answers 'Not yet implemented')", "content": { "application/json": { "schema": { "${'$'}ref": "#/components/schemas/ErrorResponse" } } } },
           "200": {
             "description": "Crawl task created",
             "content": {
@@ -1519,12 +1540,12 @@ fun openApiJson(): String = """
       "get": {
         "tags": ["Config"],
         "summary": "Get project configuration",
-        "description": "**[Montoya Config]** Exports project options as JSON. Use ?section=<name> to export a specific section (e.g. ?section=proxy exports only proxy rules; ?section=scanner exports scanner config including BChecks). Omit section to export all.",
+        "description": "**[Montoya Config]** Exports project options as JSON. Use ?section=<name> to export a specific section (e.g. ?section=proxy exports only proxy rules; Bambda filters are in bambda). An unknown section is a 400 that lists the real ones. Omit section to export all.",
         "operationId": "getProjectConfig",
         "x-api-source": "montoya-config",
         "parameters": [
           { "name": "path", "in": "query", "schema": { "type": "string" }, "description": "Dot-notation path to a config sub-tree, e.g. project_options.connections. Repeat it or comma-separate to export several. Same as section." },
-          { "name": "section", "in": "query", "schema": { "type": "string" }, "description": "Optional config section name to export (e.g. proxy, scanner). Omit to export all." }
+          { "name": "section", "in": "query", "schema": { "type": "string" }, "description": "Top-level section to export, e.g. proxy, target or bambda. Omit to export all." }
         ],
         "responses": {
           "200": {
@@ -1569,12 +1590,12 @@ fun openApiJson(): String = """
       "get": {
         "tags": ["Config"],
         "summary": "Get user configuration",
-        "description": "**[Montoya Config]** Exports user options as JSON. Use ?section=<name> to export a specific section (e.g. ?section=proxy exports proxy user settings; Bambda filters are in the proxy section). Omit section to export all.",
+        "description": "**[Montoya Config]** Exports user options as JSON. Use ?section=<name> to export a specific section; a bare name means user_options.<name>, so ?section=proxy exports user_options.proxy. An unknown section is a 400 that lists the real ones. Omit section to export all.",
         "operationId": "getUserConfig",
         "x-api-source": "montoya-config",
         "parameters": [
           { "name": "path", "in": "query", "schema": { "type": "string" }, "description": "Dot-notation path to a sub-tree, e.g. user_options.extender. Repeat it or comma-separate to export several. Same as section." },
-          { "name": "section", "in": "query", "schema": { "type": "string" }, "description": "Optional config section name to export (e.g. proxy, scanner). Omit to export all." }
+          { "name": "section", "in": "query", "schema": { "type": "string" }, "description": "Section to export, e.g. proxy or bchecks (read as user_options.<name>). Omit to export all." }
         ],
         "responses": {
           "200": {
@@ -2073,7 +2094,7 @@ fun openApiJson(): String = """
       "post": {
         "tags": ["Utilities"],
         "summary": "Compute cryptographic digest",
-        "description": "**[Montoya API]** Computes a cryptographic digest using Burp's Montoya CryptoUtils. Returns a lowercase hex string.\n\nSupported algorithms: SHA_256, SHA_512, MD5, SHA3_256, SHA3_512, BLAKE2B_256, BLAKE3_256, KECCAK_256, SHA_1, SHA_384, RIPEMD_160, WHIRLPOOL, TIGER, SM3.",
+        "description": "**[Montoya API]** Computes a cryptographic digest using Burp's Montoya CryptoUtils. Returns a lowercase hex string.\n\nSupported algorithms: SHA_256, SHA_512, MD5, SHA3_256, SHA3_512, BLAKE2B_256, BLAKE3_256, KECCAK_256, SHA_1, SHA_384, RIPEMD_160, WHIRLPOOL, TIGER, SM3. Case does not matter, and common spellings such as SHA256, sha-256 and SHA3-256 are accepted; an unknown name is a 400 that lists every Montoya algorithm.",
         "operationId": "computeDigest",
         "x-api-source": "montoya",
         "requestBody": {
@@ -2909,7 +2930,7 @@ fun openApiJson(): String = """
       "get": {
         "tags": ["Scanner"],
         "summary": "Export scanner config (BChecks)",
-        "description": "**[Montoya Config]** Exports the raw Burp scanner project config section as JSON. BCheck scripts are stored here. Use PUT /api/config/project with modified JSON to update them. Pro only.",
+        "description": "**[Montoya Config]** Exports the user_options.bchecks section, which lists the imported BCheck scripts. Use PUT /api/config/user with modified JSON to update it. Pro only.",
         "operationId": "getScannerBchecksConfig",
         "x-api-source": "montoya-config",
         "responses": {
@@ -2926,7 +2947,7 @@ fun openApiJson(): String = """
       "get": {
         "tags": ["Scanner"],
         "summary": "Export user config (Bambdas)",
-        "description": "**[Montoya Config]** Exports the raw Burp user options JSON. Bambda filters are stored here. Use PUT /api/config/user with modified JSON to update them.",
+        "description": "**[Montoya Config]** Exports the project's bambda section, which holds the Bambda display and capture filters. Use PUT /api/config/project with modified JSON to update it.",
         "operationId": "getScannerBambdaConfig",
         "x-api-source": "montoya-config",
         "responses": {
@@ -3393,24 +3414,6 @@ ${extraPaths()}
         }
       },
 
-      "ScopeResult": {
-        "type": "object",
-        "description": "Result of a scope check",
-        "properties": {
-          "url":      { "type": "string" },
-          "in_scope": { "type": "boolean" }
-        }
-      },
-
-      "ScopeRequest": {
-        "type": "object",
-        "description": "URL to add or remove from scope",
-        "required": ["url"],
-        "properties": {
-          "url": { "type": "string", "description": "Full URL or prefix to add/remove from Burp's target scope" }
-        }
-      },
-
       "SendHttpRequest": {
         "type": "object",
         "description": "HTTP/1.1 request to send through Burp's HTTP engine. Use either the **raw** format (`request` field) or the **structured** format (`method` + `path` + optional `headers`/`body`).",
@@ -3433,12 +3436,13 @@ ${extraPaths()}
       "SendHttp2Request": {
         "type": "object",
         "description": "HTTP/2 request to send through Burp's HTTP engine",
-        "required": ["host", "pseudo_headers"],
+        "required": ["host"],
         "properties": {
           "host":           { "type": "string" },
           "port":           { "type": "integer", "default": 443 },
           "use_https":      { "type": "boolean", "default": true },
-          "pseudo_headers": { "type": "object", "additionalProperties": { "type": "string" }, "description": "HTTP/2 pseudo-headers: :method, :path, :scheme, :authority" },
+          "request":        { "type": "string", "nullable": true, "description": "Raw HTTP/1-style request to send as HTTP/2, instead of pseudo_headers, headers and body" },
+          "pseudo_headers": { "type": "object", "additionalProperties": { "type": "string" }, "description": "HTTP/2 pseudo-headers. :method and :path are required when no raw request is given; :scheme and :authority default from the target" },
           "headers":        { "type": "object", "additionalProperties": { "type": "string" }, "description": "Regular HTTP/2 headers" },
           "body":           { "type": "string", "description": "Request body (optional)" }
         }
@@ -3726,7 +3730,7 @@ ${extraPaths()}
         "description": "Burp config JSON to merge",
         "required": ["json"],
         "properties": {
-          "json": { "type": "object", "description": "JSON object matching Burp's config schema to merge into the current config" }
+          "json": { "description": "Burp config to merge into the current config: a JSON object, or the same JSON as a string (as GET returns it in 'result')" }
         }
       },
 

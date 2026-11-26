@@ -99,6 +99,12 @@ fun Routing.httpRoutes(api: MontoyaApi) {
                         ErrorResponse("Failed to connect to ${req.host}:${req.port} - no response received")
                     )
                 }
+                if (rr.response() == null) {
+                    return@runCatching call.respond(
+                        HttpStatusCode.BadGateway,
+                        ErrorResponse("Sent to ${req.host}:${req.port} but no response came back (connection refused, reset or timed out)")
+                    )
+                }
                 val rawResp   = rr.response()?.toString()
                 val httpStatus = rr.response()?.statusCode()
                 val reqStr    = rr.request()?.toString() ?: rawRequest
@@ -136,7 +142,8 @@ fun Routing.httpRoutes(api: MontoyaApi) {
                     val fallback = req.requests[i].request ?: ""
                     HttpSendResponse(
                         request = rr?.request()?.toString() ?: fallback,
-                        response = rr?.response()?.toString()
+                        response = rr?.response()?.toString(),
+                        status = rr?.response()?.statusCode()?.toInt()
                     )
                 }
                 call.respond(responses)
@@ -149,25 +156,29 @@ fun Routing.httpRoutes(api: MontoyaApi) {
             val req = runCatching { call.receive<SendHttp2Request>() }.getOrElse {
                 return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid request body: ${it.message}"))
             }
+            if (req.host.isBlank()) return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("'host' is required"))
+            val parts = runCatching {
+                if (req.request != null) http2FromRaw(req.request, req.host, req.port, req.use_https)
+                else Http2Parts(
+                    http2PseudoHeaders(req.pseudo_headers, req.host, req.port, req.use_https) +
+                        req.headers.map { (k, v) -> k.lowercase() to v },
+                    req.body
+                )
+            }.getOrElse { return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse(it.message ?: "Invalid HTTP/2 request")) }
             runCatching {
                 val service = httpService(req.host, req.port, req.use_https)
-                val pseudoHeaders = req.pseudo_headers.map { (k, v) ->
-                    val key = if (k.startsWith(":")) k else ":$k"
-                    HttpHeader.httpHeader(key.lowercase(), v)
-                }
-                val regularHeaders = req.headers.map { (k, v) -> HttpHeader.httpHeader(k.lowercase(), v) }
-                val httpReq = HttpRequest.http2Request(service, pseudoHeaders + regularHeaders, req.body)
+                val httpReq = HttpRequest.http2Request(service, parts.headers.map { (k, v) -> HttpHeader.httpHeader(k, v) }, parts.body)
                 val rr = api.http().sendRequest(httpReq, HttpMode.HTTP_2)
-                if (rr == null) {
-                    return@runCatching call.respond(
+                val resp = rr?.response()
+                    ?: return@runCatching call.respond(
                         HttpStatusCode.BadGateway,
-                        ErrorResponse("Failed to connect to ${req.host}:${req.port} - no response received")
+                        ErrorResponse("Sent to ${req.host}:${req.port} over HTTP/2 but no response came back (connection refused, reset, timed out, or no HTTP/2 support)")
                     )
-                }
                 call.respond(
                     HttpSendResponse(
                         request = rr.request()?.toString() ?: "",
-                        response = rr.response()?.toString()
+                        response = resp.toString(),
+                        status = resp.statusCode().toInt()
                     )
                 )
             }.onFailure { e ->
@@ -285,9 +296,14 @@ fun Routing.httpRoutes(api: MontoyaApi) {
         val scopeOnly = call.request.queryParameters["scope_only"]?.toBooleanStrictOrNull() ?: false
         val includeValues = call.request.queryParameters["include_values"]?.toBooleanStrictOrNull() ?: false
         val includeSubdomains = call.request.queryParameters["include_subdomains"]?.toBooleanStrictOrNull() ?: true
+        // Burp keeps a cookie in the jar after it expires (which is also how DELETE removes
+        // one), but never sends it, so leave expired ones out unless asked.
+        val includeExpired = call.request.queryParameters["include_expired"]?.toBooleanStrictOrNull() ?: false
+        val now = java.time.ZonedDateTime.now()
         val domainFilter = domain?.trim()?.removePrefix(".")?.lowercase()?.ifBlank { null }
 
         val cookies = api.http().cookieJar().cookies()
+            .filter { cookie -> includeExpired || cookie.expiration().map { it.isAfter(now) }.orElse(true) }
             .filter { cookie ->
                 if (domainFilter == null) true
                 else {
@@ -332,7 +348,9 @@ fun Routing.httpRoutes(api: MontoyaApi) {
                     )
                 }
             } else null
-            api.http().cookieJar().setCookie(req.name, req.value, req.domain, req.path, expiresAt)
+            // Montoya takes path before domain; passing them the other way round stored every
+            // cookie with its domain as the path, so it never matched a request.
+            api.http().cookieJar().setCookie(req.name, req.value, req.path ?: "/", req.domain, expiresAt)
             call.respond(MessageResponse("Cookie '${req.name}' set for domain '${req.domain}'"))
         }.onFailure { e ->
             if (!call.response.isCommitted) call.respond(HttpStatusCode.InternalServerError, ErrorResponse(e.message ?: "Error"))
@@ -352,7 +370,7 @@ fun Routing.httpRoutes(api: MontoyaApi) {
             if (matches.isEmpty()) return@runCatching call.respond(HttpStatusCode.NotFound, ErrorResponse("Cookie '$name' not found${if (domain != null) " for domain '$domain'" else ""}"))
             // Montoya API has no deleteCookie; expire each match by setting expiry to epoch
             val epoch = java.time.ZonedDateTime.ofInstant(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC)
-            matches.forEach { c -> jar.setCookie(c.name(), "", c.domain(), c.path(), epoch) }
+            matches.forEach { c -> jar.setCookie(c.name(), "", c.path(), c.domain(), epoch) }
             call.respond(MessageResponse("Deleted ${matches.size} cookie(s) named '$name'"))
         }.onFailure { if (!call.response.isCommitted) call.respond(HttpStatusCode.InternalServerError, ErrorResponse(it.message ?: "Error")) }
     }
@@ -402,7 +420,8 @@ fun Routing.httpRoutes(api: MontoyaApi) {
             if (firstStatus !in req.retry_on) {
                 call.respond(HttpSendResponse(
                     request  = first?.request()?.toString() ?: "",
-                    response = first?.response()?.toString()
+                    response = first?.response()?.toString(),
+                    status   = first?.response()?.statusCode()?.toInt()
                 ))
                 return@post
             }
@@ -418,7 +437,8 @@ fun Routing.httpRoutes(api: MontoyaApi) {
             val retry = sendTarget(headerLine)
             call.respond(HttpSendResponse(
                 request  = retry?.request()?.toString() ?: "",
-                response = retry?.response()?.toString()
+                response = retry?.response()?.toString(),
+                status   = retry?.response()?.statusCode()?.toInt()
             ))
         }.onFailure { if (!call.response.isCommitted) call.respond(HttpStatusCode.InternalServerError, ErrorResponse(it.message ?: "Error")) }
     }
@@ -519,6 +539,8 @@ fun Routing.httpRoutes(api: MontoyaApi) {
         }
         if (req.host.isBlank())          return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("'host' is required"))
         if (req.path_template.isBlank()) return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("'path_template' is required"))
+        if ("{word}" !in req.path_template) return@post call.respond(HttpStatusCode.BadRequest,
+            ErrorResponse("'path_template' has no {word} placeholder, so every request would hit the same path. Example: /api/{word}"))
         if (req.wordlist.isEmpty())      return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("'wordlist' must not be empty"))
         if (req.wordlist.size > 500)     return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("'wordlist' exceeds maximum of 500"))
         val concurrency = req.concurrency.coerceIn(1, 20)
@@ -713,7 +735,11 @@ fun Routing.httpRoutes(api: MontoyaApi) {
         )
         runCatching {
             var mutated = HttpResponse.httpResponse(req.response)
-            if (req.status_code != null) mutated = mutated.withStatusCode(req.status_code.toShort())
+            if (req.status_code != null) {
+                // withStatusCode keeps the old reason phrase, which gave "404 OK".
+                mutated = mutated.withStatusCode(req.status_code.toShort())
+                    .withReasonPhrase(HttpStatusCode.fromValue(req.status_code).description)
+            }
             if (req.body != null) mutated = mutated.withBody(req.body)
             for ((name, value) in req.add_headers) mutated = mutated.withAddedHeader(name, value)
             for ((name, value) in req.update_headers) mutated = mutated.withUpdatedHeader(name, value)

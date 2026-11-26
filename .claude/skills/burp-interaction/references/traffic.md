@@ -1,12 +1,12 @@
----
-name: reburp-traffic
-description: Read and drive HTTP traffic through Burp over the reburp API - proxy history and search, scope, sending HTTP/1.1 and HTTP/2 requests, JWT re-auth, fuzzing, access-control (BOLA/BFLA) diffing, the high-throughput request engine, WebSockets, match-and-replace, and the encode/decode utilities. Use when testing or replaying requests rather than scanning.
----
-
 # Traffic: reading, replaying and fuzzing through Burp
 
-Read `reburp-api` first for setup, discovery and the shared conventions. Field lists for every
-endpoint named here are in `.codex/skills/reburp-api/references/endpoints.md`.
+Part of the `burp-interaction` skill; its SKILL.md has setup, discovery and the shared
+conventions. For the exact fields of any endpoint named here, run
+`scripts/reburp.py describe METHOD PATH` (or `endpoints --grep WORD`) from the skill folder
+rather than guessing.
+
+Contents: getting traffic in front of you, scope first, replaying a history item, sending
+requests, analysis helpers, testing patterns, changing what Burp does to traffic.
 
 ## Getting traffic in front of you
 
@@ -35,19 +35,36 @@ browse through Burp (Proxy -> Open browser is the zero-config option) before the
 `/api/scope/exclude` to change it, `GET /api/scope/rules` to see the rules. Keeping the engagement
 target in scope is what makes `scope_only=true` filters and Burp's own tooling behave.
 
+## Replaying a history item
+
+`POST /api/utils/rank` and the history listings report Burp's own message `id`, but
+`GET /api/proxy/history/{index}` takes a zero-based position in the current list, so
+`/api/proxy/history/287` is the 288th entry, not id 287. To replay a ranked item:
+
+1. Find it by id: `GET /api/proxy/history/by-id/287`, or `scripts/reburp.py history-item 287`,
+   which also prints the body for step 2.
+2. Send its raw request: `POST /api/http/send` with `host`, `port`, `use_https` (the entry's
+   `secure`) and `request` (the entry's `final_request`, or `request`). `history-item` prints
+   this as `send_body`. reburp cannot replay by id alone, and a body without `host` is a 400.
+
 ## Sending requests
 
 - `POST /api/http/send` - one HTTP/1.1 request through Burp's engine (so it lands in history and
   uses Burp's TLS, upstream proxies and cookie jar). Raw `request` string or structured
   `method`/`path`/`headers`/`body`. `redirect_mode` is `ALWAYS|NEVER|SAME_HOST|IN_SCOPE`. A failed
   connection is `502`, not an exception.
-- `POST /api/http/send/http2` - explicit HTTP/2 with `pseudo_headers`.
-- `POST /api/http/send-batch` - up to 20 concurrent, ordered results.
+- `POST /api/http/send/http2` - forces HTTP/2. Give a raw `request` (converted for you: the
+  request line becomes `:method`/`:path`, Host becomes `:authority`) or `pseudo_headers` with at
+  least `:method` and `:path`. `POST /api/http/send` already negotiates HTTP/2 when the server
+  offers it, so use this only to force the protocol.
+- `POST /api/http/send-batch` - up to 20 concurrent, ordered results, each with its `status`
+  (null when that request got no response).
 - `POST /api/http/send-with-auth` - for JWT APIs: on `401`/`403` it runs the `auth` request, pulls
   the token with `token_path` (e.g. `$.access`), injects it per `inject_as` and retries. Prefer it
   over hand-rolling token refresh.
 - `POST /api/repeater/send` / `POST /api/intruder/send` put a raw request in front of the user in
-  Burp's own tabs; Repeater does not auto-send.
+  Burp's own tabs; Repeater does not auto-send. Their body is `raw_request` (plus an optional
+  `tab_name`), not `host` + `request`: the target comes from the request's Host header.
 - `POST /api/organizer/send` parks an interesting request in the Organizer for later.
 
 ## Analysis helpers
