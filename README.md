@@ -32,11 +32,8 @@ you would click in Burp - reading proxy history, sending a request, editing scop
 scan, decoding a token - becomes a JSON call an agent or a `curl` line can make.
 
 It pairs with the [`burp-interaction`](.claude/skills/burp-interaction) agent skill so an AI
-assistant can drive Burp directly.
-Codex users get the same context from the skills in [`.codex/skills`](.codex/skills):
-[`reburp-api`](.codex/skills/reburp-api) (setup, conventions, a spec-aware CLI client and the full
-endpoint reference), [`reburp-traffic`](.codex/skills/reburp-traffic),
-[`reburp-scanning`](.codex/skills/reburp-scanning) and [`reburp-ui`](.codex/skills/reburp-ui).
+assistant can drive Burp directly. Codex uses [`reburp-api`](.codex/skills/reburp-api), which
+ships a spec-aware client, `scripts/reburp.py`, and [`reburp-traffic`](.codex/skills/reburp-traffic).
 
 - [What reburp unlocks](#what-reburp-unlocks)
 - [Install](#install)
@@ -74,6 +71,10 @@ grab the matching jar from [Releases](https://github.com/forefy/reburp/releases)
 
 | reburp | Minimum Burp Suite (Montoya) |
 |--------|------------------------------|
+| [1.1.19](https://github.com/forefy/reburp/releases/tag/v1.1.19) | 2026.7 |
+| [1.1.18](https://github.com/forefy/reburp/releases/tag/v1.1.18) | 2026.7 |
+| [1.1.17](https://github.com/forefy/reburp/releases/tag/v1.1.17) | 2026.7 |
+| [1.1.16](https://github.com/forefy/reburp/releases/tag/v1.1.16) | 2026.7 |
 | [1.1.15](https://github.com/forefy/reburp/releases/tag/v1.1.15) | 2026.7 |
 | [1.1.14](https://github.com/forefy/reburp/releases/tag/v1.1.14) | 2026.7 |
 | [1.1.13](https://github.com/forefy/reburp/releases/tag/v1.1.13) | 2026.7 |

@@ -1,6 +1,6 @@
 ---
 name: reburp-api
-description: Call the reburp REST API, which exposes Burp Suite's full Montoya API on http://127.0.0.1:9090. Use for any Burp work over HTTP - checking the extension is up, discovering endpoints from the live OpenAPI spec, request/response conventions, error codes, and the safety rules for the unauthenticated port. Start here, then use reburp-traffic, reburp-scanning or reburp-ui for a specific area.
+description: Call the reburp REST API, which exposes Burp Suite's full Montoya API on http://127.0.0.1:9090. Use for any Burp work over HTTP - checking the extension is up, discovering endpoints from the live OpenAPI spec, request/response conventions, error codes, and the safety rules for the unauthenticated port.
 ---
 
 # Calling the reburp API
