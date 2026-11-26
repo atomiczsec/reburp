@@ -40,7 +40,6 @@ data class LogEntry(
     val requestHeaders: String,
     val requestBody: String,
     val responseBody: String,
-    var notes: String = "",
     val sessionId: String? = null,
     /** Target host this call drove Burp to reach, blank when the call had no target. */
     val host: String = "",
@@ -53,7 +52,7 @@ data class LogEntry(
 )
 
 private class LogTableModel : AbstractTableModel() {
-    private val cols    = arrayOf("#", "Time", "Method", "Status", "ms", "Host", "Path", "AI Notes")
+    private val cols    = arrayOf("#", "Time", "Method", "Status", "ms", "Host", "Path")
     private val entries = mutableListOf<LogEntry>()
 
     fun add(entry: LogEntry) {
@@ -83,7 +82,6 @@ private class LogTableModel : AbstractTableModel() {
             4 -> e.durationMs
             5 -> e.host
             6 -> e.path
-            7 -> e.notes
             else -> ""
         }
     }
@@ -194,7 +192,6 @@ class ActivityLogTab(private val api: MontoyaApi) {
         cm.getColumn(4).preferredWidth = 58   // ms
         cm.getColumn(5).preferredWidth = 170  // Host
         cm.getColumn(6).preferredWidth = 330  // Path
-        cm.getColumn(7).preferredWidth = 160  // Notes
 
         // Method renderer - colored badges
         val methodRenderer = object : DefaultTableCellRenderer() {
@@ -265,21 +262,6 @@ class ActivityLogTab(private val api: MontoyaApi) {
             }
         }
         cm.getColumn(4).cellRenderer = msRenderer
-
-        // AI Notes column - auto-generated, read-only, italic when empty
-        val notesRenderer = object : DefaultTableCellRenderer() {
-            override fun getTableCellRendererComponent(
-                tbl: JTable, value: Any?, sel: Boolean, foc: Boolean, row: Int, col: Int
-            ): Component {
-                val text = value?.toString() ?: ""
-                super.getTableCellRendererComponent(tbl, text, sel, foc, row, col)
-                font = if (text.isBlank()) Font(tbl.font.name, Font.ITALIC, tbl.font.size)
-                       else tbl.font
-                if (!sel && text.isBlank()) foreground = Color(100, 100, 100)
-                return this
-            }
-        }
-        cm.getColumn(7).cellRenderer = notesRenderer
 
         table.selectionModel.addListSelectionListener { e: ListSelectionEvent ->
             if (!e.valueIsAdjusting && table.selectedRow >= 0) {
@@ -700,47 +682,40 @@ class ActivityLogTab(private val api: MontoyaApi) {
 
     // ── public API ────────────────────────────────────────────────────────────
 
-    // ── AI notes - see AiNotes.kt ─────────────────────────────────────────────
-
     fun log(
         method: String, path: String, status: Int, durationMs: Long,
         requestHeaders: String, requestBody: String, responseBody: String,
         sessionId: String? = null,
-        forcedNotes: String? = null,
         target: HttpService? = null,
     ) {
         // For /api/http/send* endpoints, surface the target request details
         // instead of the reburp API call itself (which is always POST 200).
-        val (displayMethod, displayPath, displayStatus, displayNotes) = run {
-            // forcedNotes bypasses analyzeEntry entirely - used for PoC-labeled multi-step attacks
-            if (forcedNotes != null) return@run arrayOf(method, path, status, forcedNotes)
+        val (displayMethod, displayPath, displayStatus) = run {
             val resp = try { Json.parseToJsonElement(responseBody).jsonObject } catch (_: Exception) { null }
             val targetStatus  = resp?.get("status")?.jsonPrimitive?.intOrNull
-            val targetNotes   = resp?.get("ai_notes")?.jsonPrimitive?.contentOrNull
             if (targetStatus != null) {
                 val req = try { Json.parseToJsonElement(requestBody).jsonObject } catch (_: Exception) { null }
                 val tMethod = req?.get("method")?.jsonPrimitive?.contentOrNull ?: method
                 val tPath   = req?.get("path")?.jsonPrimitive?.contentOrNull   ?: path
-                arrayOf(tMethod, tPath, targetStatus, targetNotes ?: "")
+                Triple(tMethod, tPath, targetStatus)
             } else {
-                arrayOf(method, path, status, analyzeEntry(method, path, status, requestBody, responseBody))
+                Triple(method, path, status)
             }
         }
         val service = target ?: serviceOf(requestBody, responseBody)
         val entry = LogEntry(
             id             = counter.incrementAndGet(),
             timestamp      = LocalTime.now().format(fmt),
-            method         = displayMethod as String,
-            path           = displayPath   as String,
-            status         = displayStatus as Int,
+            method         = displayMethod,
+            path           = displayPath,
+            status         = displayStatus,
             durationMs     = durationMs,
             requestHeaders = requestHeaders,
             requestBody    = capBody(requestBody),
             responseBody   = capBody(responseBody),
-            notes          = displayNotes  as String,
             sessionId      = sessionId,
             host           = service?.host() ?: "",
-            targetUrl      = service?.let { urlOf(it, displayPath as String) },
+            targetUrl      = service?.let { urlOf(it, displayPath) },
             apiMethod      = method.takeIf { it != displayMethod },
             apiPath        = path.takeIf { it != displayPath },
             apiStatus      = status.takeIf { it != displayStatus },
@@ -772,7 +747,6 @@ class ActivityLogTab(private val api: MontoyaApi) {
         put("req_headers", e.requestHeaders)
         put("req_body",    e.requestBody)
         put("resp_body",   e.responseBody)
-        put("notes",       e.notes)
         if (e.sessionId != null) put("session_id", e.sessionId)
         if (e.host.isNotBlank()) put("host", e.host)
         if (e.targetUrl != null) put("target_url", e.targetUrl)
@@ -799,7 +773,6 @@ class ActivityLogTab(private val api: MontoyaApi) {
             requestHeaders = o["req_headers"]?.jsonPrimitive?.content ?: "",
             requestBody    = reqBody,
             responseBody   = respBody,
-            notes          = o["notes"]?.jsonPrimitive?.content ?: "",
             sessionId      = o["session_id"]?.jsonPrimitive?.contentOrNull,
             host           = o["host"]?.jsonPrimitive?.contentOrNull ?: service?.host() ?: "",
             targetUrl      = o["target_url"]?.jsonPrimitive?.contentOrNull

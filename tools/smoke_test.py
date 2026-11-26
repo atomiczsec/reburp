@@ -598,8 +598,6 @@ def exercise_everything(c, args):
         c.check(f"unknown WebSocket id is a 404 ({m} {suffix or '/'})", m,
                 f"/api/websocket/reburp-smoke-none{suffix}", body, expect=404)
     c.check("unload needs confirm", "POST", "/api/meta/extension/unload", {"confirm": False}, expect=400)
-    c.check("raw shell refused while disabled", "POST", "/api/utils/shell/execute-raw",
-            {"command_line": "true"}, expect=403, tolerate=(200,))
 
     if args.traces:
         print("\nTools that keep what they are sent (--traces)")
@@ -871,11 +869,10 @@ def main():
         c.check("by-id returns the entry with that id", "GET", f"/api/proxy/history/by-id/{wanted}?include_body=false",
                 verify=lambda p, w=wanted: None if p.get("id") == w else f"asked {w}, got {p.get('id')}")
 
-    print("\nShell (expected off)")
-    c.check("shell status", "GET", "/api/utils/shell/status",
-            verify=lambda p: None if "enabled" in p else "no enabled flag")
-    c.check("execute refused while disabled", "POST", "/api/utils/shell/execute",
-            {"command": ["echo", "hi"]}, expect=403, tolerate=(200,))
+    print("\nShell (not exposed)")
+    c.check("shell status is absent", "GET", "/api/utils/shell/status", expect=404)
+    for endpoint in ("execute", "execute-raw"):
+        c.check(f"shell {endpoint} is absent", "POST", f"/api/utils/shell/{endpoint}", {}, expect=404)
 
     print("\nLogging")
     c.check("output", "POST", "/api/logging/output", {"message": "smoke test: output"},

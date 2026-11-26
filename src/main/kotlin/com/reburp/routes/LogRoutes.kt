@@ -22,7 +22,6 @@ fun Routing.logRoutes(api: MontoyaApi, activityLog: ActivityLogTab) {
     // ?method=          exact match (case-insensitive)
     // ?status=          exact status code
     // ?path_contains=   substring match on path
-    // ?ai_notes_contains= substring match on ai_notes
     // ?session_id=      exact match on session tag
     // ?limit=           max results (default 100, max 500)
     // ?offset=          skip first N results (for pagination)
@@ -32,7 +31,6 @@ fun Routing.logRoutes(api: MontoyaApi, activityLog: ActivityLogTab) {
         val method         = p["method"]?.uppercase()
         val status         = p["status"]?.toIntOrNull()
         val pathContains   = p["path_contains"]
-        val notesContains  = p["ai_notes_contains"]
         val sessionId      = p["session_id"]
         val limit          = (p["limit"]?.toIntOrNull() ?: 100).coerceIn(1, 500)
         val offset         = (p["offset"]?.toIntOrNull() ?: 0).coerceAtLeast(0)
@@ -45,7 +43,6 @@ fun Routing.logRoutes(api: MontoyaApi, activityLog: ActivityLogTab) {
             .let { if (method       != null) it.filter { e -> e.method.uppercase() == method } else it }
             .let { if (status       != null) it.filter { e -> e.status == status } else it }
             .let { if (pathContains != null) it.filter { e -> e.path.contains(pathContains, ignoreCase = true) } else it }
-            .let { if (notesContains!= null) it.filter { e -> e.notes.contains(notesContains, ignoreCase = true) } else it }
             .let { if (sessionId    != null) it.filter { e -> e.sessionId == sessionId } else it }
 
         val entries = (if (newestFirst) matched.asReversed() else matched)
@@ -59,7 +56,6 @@ fun Routing.logRoutes(api: MontoyaApi, activityLog: ActivityLogTab) {
                     path       = e.path,
                     status     = e.status,
                     duration_ms= e.durationMs,
-                    ai_notes   = e.notes,
                     session_id = e.sessionId
                 )
             }

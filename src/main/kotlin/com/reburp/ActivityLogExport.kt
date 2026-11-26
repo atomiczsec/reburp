@@ -17,7 +17,6 @@ enum class LogColumn(val title: String, val value: (LogEntry) -> String) {
     MS("ms",       { it.durationMs.toString() }),
     HOST("Host",   { it.host }),
     PATH("Path",   { it.path }),
-    NOTES("AI Notes", { it.notes }),
     SESSION("Session", { it.sessionId ?: "" }),
 }
 
@@ -69,7 +68,7 @@ fun exportCsv(rows: List<ExportRow>, columns: List<LogColumn>): String = buildSt
 
 /**
  * RFC 4180 quoting, plus a leading apostrophe on anything a spreadsheet would run as a
- * formula. Paths and notes come from the target application, so they are untrusted.
+ * formula. Paths come from the target application, so they are untrusted.
  */
 private fun csvField(raw: String): String {
     val value = if (raw.isNotEmpty() && raw[0] in "=+-@\t\r") "'$raw" else raw

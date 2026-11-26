@@ -15,7 +15,6 @@ enum class FilterTarget(val label: String) {
     ALL_COLUMNS("All columns"),
     HOST("Host"),
     PATH("Path"),
-    NOTES("AI Notes"),
 }
 
 /** The text a row offers up for matching, given the selected fields. */
@@ -24,11 +23,10 @@ fun filterHaystack(e: LogEntry, target: FilterTarget, bodies: Boolean): List<Str
         FilterTarget.HOST_AND_PATH -> listOf(e.host, e.path)
         FilterTarget.HOST          -> listOf(e.host)
         FilterTarget.PATH          -> listOf(e.path)
-        FilterTarget.NOTES         -> listOf(e.notes)
         FilterTarget.ALL_COLUMNS   -> listOf(
             e.id.toString(), e.timestamp, e.method,
             if (e.status == 0) "" else e.status.toString(),
-            e.durationMs.toString(), e.host, e.path, e.notes,
+            e.durationMs.toString(), e.host, e.path,
         )
     }
     // The bodies hold the raw target request and response, so a parameter name or a token

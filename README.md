@@ -181,7 +181,6 @@ The spec is the source of truth for request and response shapes.
 | JSON | `/api/utils/json/` | Validate, read and edit by pointer, inspect structure, normalise |
 | Bytes | `/api/utils/bytes/` | Search, slice, append, allocate and inspect byte buffers |
 | Ranking | `/api/utils/rank` | Rank proxy history by how anomalous each exchange looks |
-| Shell | `/api/utils/shell/` | OS command execution. Disabled by default, see [Security](#security) |
 
 ## Quick start
 
@@ -208,18 +207,7 @@ curl -s http://127.0.0.1:9090/api/scope/include \
 The REST server binds **`127.0.0.1` only**, but the port is **unauthenticated** and responds to
 **any origin**. Anything that can reach `localhost:9090` can drive Burp, including a web page
 open in your browser. Treat the port as trusted-local-only and never expose it beyond loopback.
-
-Because of that, OS command execution is **off by default**. `/api/utils/shell/execute` and
-`/api/utils/shell/execute-raw` return `403` unless the extension sees this in Burp's own process
-environment:
-
-```bash
-REBURP_ENABLE_SHELL=1
-```
-
-With it set, any origin that can reach the port gets remote code execution on the host. Enable it
-only when you accept that. Every invocation is written to the extension output tab.
-`GET /api/utils/shell/status` reports whether it is on and never requires it to be.
+OS command execution (`ShellUtils`) is not exposed at all.
 
 ## API coverage
 
